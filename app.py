@@ -49,15 +49,24 @@ if st.session_state.scroll_to_top:
     st.html(
         "<script>"
         "(function(){"
-        "var el=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
+        "var attempts=0;"
+        "function resetScroll(){"
+        "var el=document.querySelector('[data-testid=\\\"stAppViewContainer\\\"]');"
         "if(el){el.scrollTop=0;}"
+        "var main=document.querySelector('[data-testid=\\\"stMain\\\"]');"
+        "if(main){main.scrollTop=0;}"
+        "attempts++;"
+        "if(attempts<12){window.setTimeout(resetScroll,100);}"
+        "}"
+        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',resetScroll,{once:true});}"
+        "else{resetScroll();}"
         "})();"
         "</script>",
         unsafe_allow_javascript=True,
     )
 
 def _scroll_top():
-    """No-op — call-sites in render functions remain; scroll is at module level."""
+    """Navigation call-sites are kept; the scroll reset runs after rerender."""
     pass
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
