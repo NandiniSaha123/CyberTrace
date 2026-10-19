@@ -44,26 +44,6 @@ for _k, _v in [
 # using st.html(unsafe_allow_javascript=True), which injects directly into
 # the page DOM (no iframe) and re-executes script tags via Html.js / React useEffect.
 
-if st.session_state.scroll_to_top:
-    st.session_state.scroll_to_top = False
-    st.html(
-        """<script>
-        (function () {
-            function resetScroll() {
-                var el = document.querySelector('[data-testid="stAppViewContainer"]');
-                if (el) {
-                    el.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                }
-            }
-            // Reset after the Streamlit rerender, without a repeated timer loop.
-            requestAnimationFrame(function () {
-                resetScroll();
-                requestAnimationFrame(resetScroll);
-            });
-        })();
-        </script>""",
-        unsafe_allow_javascript=True,
-    )
 
 def _scroll_top():
     """No-op — call-sites in render functions remain; scroll is at module level."""
@@ -2017,3 +1997,21 @@ elif page.startswith("case_"):
 else:
     st.session_state.page = "home"
     st.rerun()
+
+# Reset scroll only AFTER the new page/stage has been rendered.
+# This avoids the previous early reset and avoids repeated timer loops.
+if st.session_state.scroll_to_top:
+    st.session_state.scroll_to_top = False
+    st.html(
+        "<script>"
+        "requestAnimationFrame(function(){"
+        "requestAnimationFrame(function(){"
+        "var el=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
+        "if(el){el.scrollTo({top:0,left:0,behavior:'auto'});el.scrollTop=0;}"
+        "var main=document.querySelector('[data-testid=\"stMain\"]');"
+        "if(main){main.scrollTop=0;}"
+        "});"
+        "});"
+        "</script>",
+        unsafe_allow_javascript=True,
+    )
