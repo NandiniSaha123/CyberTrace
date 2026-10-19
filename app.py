@@ -47,21 +47,55 @@ for _k, _v in [
 if st.session_state.scroll_to_top:
     st.session_state.scroll_to_top = False
     st.html(
-        "<script>"
-        "(function(){"
-        "var attempts=0;"
-        "function resetScroll(){"
-        "var el=document.querySelector('[data-testid=\\\"stAppViewContainer\\\"]');"
-        "if(el){el.scrollTop=0;}"
-        "var main=document.querySelector('[data-testid=\\\"stMain\\\"]');"
-        "if(main){main.scrollTop=0;}"
-        "attempts++;"
-        "if(attempts<12){window.setTimeout(resetScroll,100);}"
-        "}"
-        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',resetScroll,{once:true});}"
-        "else{resetScroll();}"
-        "})();"
-        "</script>",
+        """
+        <script>
+        (function () {
+            let attempts = 0;
+            const maxAttempts = 40;
+
+            function resetScroll() {
+                // Streamlit's app container is usually the scrolling element.
+                const selectors = [
+                    '[data-testid="stAppViewContainer"]',
+                    '[data-testid="stMain"]',
+                    '[data-testid="stMainBlockContainer"]'
+                ];
+
+                selectors.forEach(function (selector) {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        element.scrollTo({ top: 0, left: 0, behavior: "instant" });
+                        element.scrollTop = 0;
+                    }
+                });
+
+                // Also reset any scrollable ancestors/descendants around the main content.
+                const main = document.querySelector('[data-testid="stMain"]');
+                if (main) {
+                    let element = main;
+                    while (element && element !== document.body) {
+                        if (element.scrollHeight > element.clientHeight) {
+                            element.scrollTop = 0;
+                        }
+                        element = element.parentElement;
+                    }
+                }
+
+                attempts += 1;
+                if (attempts < maxAttempts) {
+                    window.setTimeout(resetScroll, 100);
+                }
+            }
+
+            // Wait until Streamlit has applied the new stage's DOM, then retry briefly.
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", resetScroll, { once: true });
+            } else {
+                window.requestAnimationFrame(resetScroll);
+            }
+        })();
+        </script>
+        """,
         unsafe_allow_javascript=True,
     )
 
