@@ -44,29 +44,9 @@ for _k, _v in [
 # using st.html(unsafe_allow_javascript=True), which injects directly into
 # the page DOM (no iframe) and re-executes script tags via Html.js / React useEffect.
 
-if st.session_state.scroll_to_top:
-    st.session_state.scroll_to_top = False
-    st.html(
-        "<script>"
-        "(function(){"
-        "var attempts=0;"
-        "function resetScroll(){"
-        "var el=document.querySelector('[data-testid=\\\"stAppViewContainer\\\"]');"
-        "if(el){el.scrollTop=0;}"
-        "var main=document.querySelector('[data-testid=\\\"stMain\\\"]');"
-        "if(main){main.scrollTop=0;}"
-        "attempts++;"
-        "if(attempts<12){window.setTimeout(resetScroll,100);}"
-        "}"
-        "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',resetScroll,{once:true});}"
-        "else{resetScroll();}"
-        "})();"
-        "</script>",
-        unsafe_allow_javascript=True,
-    )
 
 def _scroll_top():
-    """Navigation call-sites are kept; the scroll reset runs after rerender."""
+    """No-op — call-sites in render functions remain; scroll is at module level."""
     pass
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -1657,28 +1637,23 @@ conclusions. All data is entirely fictional and labelled for educational use.
         unsafe_allow_html=True,
     )
 
-    # Render cases one row at a time so the sequence stays correct on mobile too.
-    # Each row has up to three columns; the next row starts only after all cards
-    # in the current row have been rendered.
-    for row_start in range(0, len(CASES), 3):
-        cols = st.columns(3, gap="medium")
-        for col_idx in range(3):
-            i = row_start + col_idx
-            if i >= len(CASES):
-                break
-            case = CASES[i]
-            with cols[col_idx]:
-                diff_cls           = DIFF_CSS.get(case["difficulty"], "diff-beginner")
-                diff_lbl           = DIFF_LABEL.get(case["difficulty"], "Beginner")
-                stat_cls, stat_lbl = _case_status(i)
-                sc                 = _case_score(i)
-                q_total            = len(case["questions"])
-                score_html         = (
-                    f'<div class="card-score">Score: {sc}/{q_total}</div>'
-                    if st.session_state.submitted.get(f"case_{i}") else ""
-                )
-                st.markdown(
-                    f"""
+    # Each card and its button rendered together in the same column cell.
+    # Using st.columns so that st.button() (a Python widget) sits directly
+    # below its card HTML — this is the only reliable way to keep them paired.
+    cols = st.columns(3, gap="medium")
+    for i, case in enumerate(CASES):
+        with cols[i % 3]:
+            diff_cls           = DIFF_CSS.get(case["difficulty"], "diff-beginner")
+            diff_lbl           = DIFF_LABEL.get(case["difficulty"], "Beginner")
+            stat_cls, stat_lbl = _case_status(i)
+            sc                 = _case_score(i)
+            q_total            = len(case["questions"])
+            score_html         = (
+                f'<div class="card-score">Score: {sc}/{q_total}</div>'
+                if st.session_state.submitted.get(f"case_{i}") else ""
+            )
+            st.markdown(
+                f"""
 <div class="card">
 <div class="card-top">
 <span class="card-icon">{case["icon"]}</span>
@@ -1694,14 +1669,14 @@ conclusions. All data is entirely fictional and labelled for educational use.
 {score_html}
 </div>
 """,
-                    unsafe_allow_html=True,
-                )
-                done      = st.session_state.submitted.get(f"case_{i}", False)
-                btn_label = "Review Investigation →" if done else "Open Investigation →"
-                if st.button(btn_label, key=f"btn_home_{i}"):
-                    st.session_state.page = f"case_{i}"
-                    st.session_state.scroll_to_top = True
-                    st.rerun()
+                unsafe_allow_html=True,
+            )
+            done      = st.session_state.submitted.get(f"case_{i}", False)
+            btn_label = "Review Investigation →" if done else "Open Investigation →"
+            if st.button(btn_label, key=f"btn_home_{i}"):
+                st.session_state.page = f"case_{i}"
+                st.session_state.scroll_to_top = True
+                st.rerun()
 
     render_footer()
 
@@ -2022,3 +1997,21 @@ elif page.startswith("case_"):
 else:
     st.session_state.page = "home"
     st.rerun()
+
+# Reset scroll only AFTER the new page/stage has been rendered.
+# This avoids the previous early reset and avoids repeated timer loops.
+if st.session_state.scroll_to_top:
+    st.session_state.scroll_to_top = False
+    st.html(
+        "<script>"
+        "requestAnimationFrame(function(){"
+        "requestAnimationFrame(function(){"
+        "var el=document.querySelector('[data-testid=\"stAppViewContainer\"]');"
+        "if(el){el.scrollTo({top:0,left:0,behavior:'auto'});el.scrollTop=0;}"
+        "var main=document.querySelector('[data-testid=\"stMain\"]');"
+        "if(main){main.scrollTop=0;}"
+        "});"
+        "});"
+        "</script>",
+        unsafe_allow_javascript=True,
+    )
